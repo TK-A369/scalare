@@ -49,6 +49,11 @@ async fn main() -> Result<()> {
         Commands::GetBlock { refe } => {
             let hash = refs::Ref::from_str(&args.global_args, &refe).await?;
             println!("Block with hash {}", hash);
+            if block::block_verify(&args.global_args, &hash).await? {
+                println!("Verification succesful");
+            } else {
+                eprintln!("Verification failed!");
+            }
         }
         Commands::Tag { name, refe } => {
             let hash = refs::Ref::from_str(&args.global_args, &refe).await?;
