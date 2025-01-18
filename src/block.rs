@@ -17,7 +17,7 @@ pub struct BlockContent {
     // Those are base64 encoded
     pub encrypted: Vec<String>,
     pub plain: Option<String>,
-    pub signatures: Vec<String>,
+    pub signature: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

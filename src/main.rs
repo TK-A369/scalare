@@ -9,6 +9,7 @@ use base64;
 use base64::Engine;
 use clap;
 use clap::Parser;
+use rand;
 
 #[derive(Parser)]
 #[command(about, long_about = None)]
@@ -72,6 +73,20 @@ async fn main() -> Result<()> {
             println!("Block with hash {}", hash);
             if block::block_verify(&args.global_args, &hash).await? {
                 println!("Verification succesful");
+
+                let block = block::read_block(&args.global_args, &hash).await?;
+
+                if let Some(plain) = block.content.plain {
+                    println!("It contains plaintext data");
+                } else {
+                    println!("It doesn't contain plaintext data");
+                }
+                if block.content.encrypted.len() == 0 {
+                    println!("It doesn't contain encrypted data");
+                }
+                for enc in block.content.encrypted {
+                    // TODO: print public key of rec
+                }
             } else {
                 eprintln!("Verification failed!");
             }
@@ -90,14 +105,31 @@ async fn main() -> Result<()> {
         } => {
             let file_content = tokio::fs::read(file).await?;
 
+            let mut encrypted = vec![];
+            for rec in recipient {
+                let public_key_content = tokio::fs::read_to_string(&rec).await?;
+                let public_key =
+                    <rsa::RsaPublicKey as rsa::pkcs1::DecodeRsaPublicKey>::from_pkcs1_pem(
+                        &public_key_content,
+                    )?;
+
+                let encrypted_msg = public_key.encrypt(
+                    &mut rand::thread_rng(),
+                    rsa::Pkcs1v15Encrypt,
+                    &file_content,
+                )?;
+                encrypted
+                    .push(base64::engine::general_purpose::STANDARD_NO_PAD.encode(encrypted_msg));
+            }
+
             let content = block::BlockContent {
-                encrypted: vec![],
+                encrypted,
                 plain: if plain {
                     Some(base64::engine::general_purpose::STANDARD_NO_PAD.encode(file_content))
                 } else {
                     None
                 },
-                signatures: vec![],
+                signature: None,
             };
             let block = block::Block {
                 content,
