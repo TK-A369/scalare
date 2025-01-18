@@ -1,9 +1,12 @@
 mod block;
 mod refs;
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use base64;
+use base64::Engine;
 use clap;
 use clap::Parser;
 
@@ -24,9 +27,27 @@ struct GlobalArgs {
 
 #[derive(clap::Subcommand)]
 enum Commands {
-    Select { hash: String },
-    GetBlock { refe: String },
-    Tag { name: String, refe: String },
+    Select {
+        hash: String,
+    },
+    GetBlock {
+        refe: String,
+    },
+    Tag {
+        name: String,
+        refe: String,
+    },
+    Commit {
+        #[arg(short = 'P', long = "parent")]
+        parents: Vec<String>,
+        #[arg(short = 'l', long = "plain")]
+        plain: bool,
+        #[arg(short = 'r', long = "recipient")]
+        recipient: Vec<String>,
+        #[arg(short = 's', long = "sign")]
+        sign: Option<String>,
+        file: String,
+    },
 }
 
 async fn ensure_db_dirs(global_args: &GlobalArgs) -> Result<()> {
@@ -59,6 +80,36 @@ async fn main() -> Result<()> {
             let hash = refs::Ref::from_str(&args.global_args, &refe).await?;
             let tag = refs::Tag { name };
             tag.write(&args.global_args, &hash).await?;
+        }
+        Commands::Commit {
+            parents,
+            plain,
+            file,
+            recipient,
+            sign,
+        } => {
+            let file_content = tokio::fs::read(file).await?;
+
+            let content = block::BlockContent {
+                encrypted: vec![],
+                plain: if plain {
+                    Some(base64::engine::general_purpose::STANDARD_NO_PAD.encode(file_content))
+                } else {
+                    None
+                },
+                signatures: vec![],
+            };
+            let block = block::Block {
+                content,
+                parents: BTreeSet::from_iter(parents.iter().map(|x| String::from(x))),
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            };
+
+            let hash = block::write_block(&args.global_args, &block).await?;
+            println!("Created new block {}", hash);
         }
     }
 

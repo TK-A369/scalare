@@ -14,15 +14,17 @@ use crate::GlobalArgs;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct BlockContent {
-    encrypted: Vec<Vec<u8>>,
-    plain: Option<Vec<u8>>,
-    signatures: Vec<Vec<u8>>,
+    // Those are base64 encoded
+    pub encrypted: Vec<String>,
+    pub plain: Option<String>,
+    pub signatures: Vec<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Block {
     pub content: BlockContent,
     pub parents: BTreeSet<String>,
+    pub timestamp: u64,
 }
 
 pub async fn read_block_file(global_args: &GlobalArgs, hash: &str) -> Result<String> {
@@ -42,12 +44,12 @@ pub fn block_verify<'a>(
     global_args: &'a GlobalArgs,
     hash: &'a str,
 ) -> Pin<Box<impl Future<Output = Result<bool>> + use<'a>>> {
-    Box::pin(async {
+    Box::pin(async move {
         let block_file_content = read_block_file(global_args, hash).await?;
         let mut hasher = Sha3_256::new();
         hasher.update(block_file_content.as_bytes());
         let hash_computed = hasher.finalize();
-        let hash_computed = hash_computed.as_slice();
+        let hash_computed_hex = hex::encode(hash_computed.as_slice());
 
         let block = serde_json::from_str::<Block>(&block_file_content)?;
         for parent in block.parents {
@@ -56,6 +58,19 @@ pub fn block_verify<'a>(
             }
         }
 
-        Ok(hash_computed == hash.as_bytes())
+        Ok(hash_computed_hex == hash)
     })
+}
+
+pub async fn write_block(global_args: &GlobalArgs, block: &Block) -> Result<String> {
+    let file_content = serde_json::to_string(&block)?;
+
+    let mut hasher = Sha3_256::new();
+    hasher.update(file_content.as_bytes());
+    let hash_computed = hasher.finalize();
+    let hash_computed_hex = hex::encode(hash_computed.as_slice());
+
+    let file_path = global_args.db_path.join("blocks").join(&hash_computed_hex);
+    tokio::fs::write(file_path, file_content).await?;
+    Ok(hash_computed_hex)
 }
