@@ -113,11 +113,21 @@ async fn main() -> Result<()> {
                         &public_key_content,
                     )?;
 
-                let encrypted_msg = public_key.encrypt(
-                    &mut rand::thread_rng(),
-                    rsa::Pkcs1v15Encrypt,
-                    &file_content,
-                )?;
+                let mut encrypted_msg: Vec<u8> = Vec::new();
+                let chunk_size =
+                    <rsa::RsaPublicKey as rsa::traits::PublicKeyParts>::size(&public_key) - 11;
+                let mut curr_offset: usize = 0;
+                let mut thread_rng = rand::thread_rng();
+                while curr_offset < file_content.len() {
+                    let mut chunk = public_key.encrypt(
+                        &mut thread_rng,
+                        rsa::Pkcs1v15Encrypt,
+                        &file_content
+                            [curr_offset..((curr_offset + chunk_size).min(file_content.len()))],
+                    )?;
+                    encrypted_msg.append(&mut chunk);
+                    curr_offset += chunk_size;
+                }
                 encrypted
                     .push(base64::engine::general_purpose::STANDARD_NO_PAD.encode(encrypted_msg));
             }
