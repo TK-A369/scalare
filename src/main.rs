@@ -113,6 +113,7 @@ async fn main() -> Result<()> {
             sign,
         } => {
             let file_content = tokio::fs::read(file).await?;
+            println!("File length: {}", file_content.len());
 
             let mut encrypted = vec![];
             for rec in recipient {
@@ -123,20 +124,24 @@ async fn main() -> Result<()> {
                     )?;
 
                 let mut encrypted_msg: Vec<u8> = Vec::new();
+                // See: https://datatracker.ietf.org/doc/html/rfc8017#section-7.1.1
                 let chunk_size =
-                    <rsa::RsaPublicKey as rsa::traits::PublicKeyParts>::size(&public_key) - 11;
+                    <rsa::RsaPublicKey as rsa::traits::PublicKeyParts>::size(&public_key) - 66;
+                println!("Chunk size: {}", chunk_size);
                 let mut curr_offset: usize = 0;
                 let mut thread_rng = rand::thread_rng();
                 while curr_offset < file_content.len() {
                     let mut chunk = public_key.encrypt(
                         &mut thread_rng,
-                        rsa::Pkcs1v15Encrypt,
+                        rsa::Oaep::new::<sha3::Sha3_256>(),
                         &file_content
                             [curr_offset..((curr_offset + chunk_size).min(file_content.len()))],
                     )?;
+                    println!("Encrypted chunk size: {}", chunk.len());
                     encrypted_msg.append(&mut chunk);
                     curr_offset += chunk_size;
                 }
+                println!("Encrypted length: {}", encrypted_msg.len());
                 encrypted
                     .push(base64::engine::general_purpose::STANDARD_NO_PAD.encode(encrypted_msg));
             }
@@ -178,10 +183,31 @@ async fn main() -> Result<()> {
                         <rsa::RsaPrivateKey as rsa::pkcs1::DecodeRsaPrivateKey>::from_pkcs1_pem(
                             &private_key_content,
                         )?;
+                    // See: https://datatracker.ietf.org/doc/html/rfc8017#section-7.1.1
+                    let chunk_size =
+                        <rsa::RsaPrivateKey as rsa::traits::PublicKeyParts>::size(&private_key);
+                    println!("Chunk size: {}", chunk_size);
+                    let mut curr_offset: usize = 0;
                     let msg_encrypted_base64 = &this_block.content.encrypted[0];
                     let msg_encrypted = base64::engine::general_purpose::STANDARD_NO_PAD
                         .decode(msg_encrypted_base64)?;
-                    private_key.decrypt(rsa::Pkcs1v15Encrypt, &msg_encrypted)?
+                    let mut msg_decrypted = Vec::<u8>::new();
+                    while curr_offset < msg_encrypted.len() {
+                        let mut chunk = private_key.decrypt(
+                            rsa::Oaep::new::<sha3::Sha3_256>(),
+                            &msg_encrypted[curr_offset
+                                ..((curr_offset + chunk_size).min(msg_encrypted.len()))],
+                        )?;
+                        println!(
+                            "Decrypted chunk {}..{}, resulting in length {}",
+                            curr_offset,
+                            (curr_offset + chunk_size).min(msg_encrypted.len()),
+                            chunk.len()
+                        );
+                        msg_decrypted.append(&mut chunk);
+                        curr_offset += chunk_size;
+                    }
+                    msg_decrypted
                 } else {
                     // Read plaintext
                     let msg_base64 = this_block

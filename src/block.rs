@@ -53,7 +53,7 @@ pub fn block_verify<'a>(
 
         let block = serde_json::from_str::<Block>(&block_file_content)?;
         for parent in block.parents {
-            if !block_verify(global_args, hash).await? {
+            if !block_verify(global_args, &parent).await? {
                 return Ok(false);
             }
         }
