@@ -75,7 +75,7 @@ async fn main() -> Result<()> {
     ensure_db_dirs(&args.global_args).await?;
 
     match args.command {
-        Commands::Select { hash } => {}
+        Commands::Select { hash: _ } => {}
         Commands::GetBlock { refe } => {
             let hash = refs::Ref::from_str(&args.global_args, &refe).await?;
             println!("Block with hash {}", hash);
@@ -84,7 +84,7 @@ async fn main() -> Result<()> {
 
                 let this_block = block::read_block(&args.global_args, &hash).await?;
 
-                if let Some(plain) = this_block.content.plain {
+                if let Some(_plain) = this_block.content.plain {
                     println!("It contains plaintext data");
                 } else {
                     println!("It doesn't contain plaintext data");
@@ -92,7 +92,7 @@ async fn main() -> Result<()> {
                 if this_block.content.encrypted.len() == 0 {
                     println!("It doesn't contain encrypted data");
                 }
-                for enc in this_block.content.encrypted {
+                for _enc in this_block.content.encrypted {
                     // TODO: print public key of rec
                 }
             } else {
@@ -109,7 +109,7 @@ async fn main() -> Result<()> {
             plain,
             file,
             recipient,
-            sign,
+            sign: _,
         } => {
             let file_content = tokio::fs::read(file).await?;
             println!("File length: {}", file_content.len());
@@ -168,7 +168,7 @@ async fn main() -> Result<()> {
         }
         Commands::Extract {
             private_key,
-            verify_key,
+            verify_key: _,
             output,
             refe,
         } => {
@@ -217,7 +217,7 @@ async fn main() -> Result<()> {
                     base64::engine::general_purpose::STANDARD_NO_PAD.decode(msg_base64)?
                 };
 
-                if let Some(output) = output {
+                if let Some(_output) = output {
                     // TODO
                 } else {
                     println!("{}", String::from_utf8(msg)?);

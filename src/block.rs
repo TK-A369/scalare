@@ -4,7 +4,6 @@ use std::pin::Pin;
 
 use anyhow::Result;
 use hex;
-use rsa;
 use serde;
 use serde_json;
 use sha3::{Digest, Sha3_256};
