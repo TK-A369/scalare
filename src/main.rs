@@ -58,6 +58,7 @@ enum Commands {
         output: Option<String>,
         refe: String,
     },
+    ListBlocks {},
 }
 
 async fn ensure_db_dirs(global_args: &GlobalArgs) -> Result<()> {
@@ -69,8 +70,6 @@ async fn ensure_db_dirs(global_args: &GlobalArgs) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("Hello, world!");
-
     let args = Args::parse();
 
     ensure_db_dirs(&args.global_args).await?;
@@ -225,6 +224,12 @@ async fn main() -> Result<()> {
                 }
             } else {
                 eprintln!("Verification failed!");
+            }
+        }
+        Commands::ListBlocks {} => {
+            let mut dir = tokio::fs::read_dir(args.global_args.db_path.join("blocks")).await?;
+            while let Some(bl) = dir.next_entry().await? {
+                println!("{}", bl.file_name().to_str().unwrap());
             }
         }
     }
